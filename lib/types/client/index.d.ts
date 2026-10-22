@@ -1,11 +1,12 @@
-/** Browser half: sidebar action, frame overlay, and generated DSH Remote bridge. */
+/** Browser half: the sidebar panel row, its main-panel page, and the generated DSH Remote bridge. */
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 export { XiangqiBoard, XiangqiPage } from './XiangqiPage.tsx';
 export type { XiangqiPageProps } from './XiangqiPage.tsx';
 export { liveStatusTextOf, toXiangqiGameViewModel, turnOf, ucciOf } from './view-model.ts';
 export { createXiangqiStore } from './store.ts';
-export { createXiangqiOverlay } from './XiangqiOverlay.tsx';
-export type { XiangqiClientRemote, XiangqiOverlayProps } from './XiangqiOverlay.tsx';
+export { createXiangqiPanel } from './XiangqiPanel.tsx';
+export type { XiangqiClientRemote, XiangqiPanelProps } from './XiangqiPanel.tsx';
+export { XiangqiPanelIcon } from './XiangqiPanelIcon.tsx';
 export { XIANGQI_COLUMNS, XIANGQI_ROWS, } from './types.ts';
 export type { XiangqiGameStatus, XiangqiGameViewModel, XiangqiLegalMove, XiangqiMoveRecord, XiangqiMoveRequest, XiangqiPageActions, XiangqiPiece, XiangqiPieceKind, XiangqiPosition, XiangqiSide, } from './types.ts';
 /**

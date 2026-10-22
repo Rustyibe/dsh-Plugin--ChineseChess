@@ -1,4 +1,4 @@
-/** Frame-wide Chinese chess surface and its Host/Agent turn bridge. */
+/** 主区域中国象棋面板与其 Host/Agent 落子桥。 */
 import type { PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots';
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client';
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol';
@@ -31,10 +31,12 @@ export interface XiangqiClientRemote {
         readonly cancelled: boolean;
     }>>;
 }
-export type XiangqiOverlayProps = PropsRuntime<'shell.overlay'> & PropsStore<ReturnType<typeof createXiangqiStore>>;
+export type XiangqiPanelProps = PropsRuntime<'main'> & PropsStore<ReturnType<typeof createXiangqiStore>>;
 /**
- * Build a slot component with the mounted Remote face closed over the plugin
- * fiber. This avoids a module-level singleton and keeps HMR unload-safe.
+ * Build the `main` panel component with the mounted Remote face closed over the
+ * plugin fiber. This avoids a module-level singleton and keeps HMR unload-safe.
+ * @param remote - mounted Xiangqi Remote namespace.
+ * @param onExit - leaves the panel for the Conversation (the page's own exit affordance).
  */
-export declare function createXiangqiOverlay(remote: XiangqiClientRemote): ({ useSessions, useStore, actions, }: XiangqiOverlayProps) => import("react").JSX.Element | null;
-//# sourceMappingURL=XiangqiOverlay.d.ts.map
+export declare function createXiangqiPanel(remote: XiangqiClientRemote, onExit: () => void): ({ useSessions, useStore, actions, }: XiangqiPanelProps) => import("react").JSX.Element;
+//# sourceMappingURL=XiangqiPanel.d.ts.map

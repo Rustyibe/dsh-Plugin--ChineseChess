@@ -1,4 +1,4 @@
-/** Browser half: sidebar action, frame overlay, and generated DSH Remote bridge. */
+/** Browser half: the sidebar panel row, its main-panel page, and the generated DSH Remote bridge. */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -7,22 +7,23 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import xiangqiRemote from '@deepseek-ai/dsh-plugin-xiangqi/remote'
 import type {} from '@deepseek-ai/dsh-plugin-xiangqi/remote'
 import {
-  createXiangqiOverlay,
+  createXiangqiPanel,
   type XiangqiClientRemote,
-} from './XiangqiOverlay.tsx'
-import { XiangqiSidebarAction } from './SidebarAction.tsx'
+} from './XiangqiPanel.tsx'
+import { XiangqiPanelIcon } from './XiangqiPanelIcon.tsx'
 import { createXiangqiStore } from './store.ts'
 
 export { XiangqiBoard, XiangqiPage } from './XiangqiPage.tsx'
 export type { XiangqiPageProps } from './XiangqiPage.tsx'
 export { liveStatusTextOf, toXiangqiGameViewModel, turnOf, ucciOf } from './view-model.ts'
 export { createXiangqiStore } from './store.ts'
-export { createXiangqiOverlay } from './XiangqiOverlay.tsx'
-export type { XiangqiClientRemote, XiangqiOverlayProps } from './XiangqiOverlay.tsx'
+export { createXiangqiPanel } from './XiangqiPanel.tsx'
+export type { XiangqiClientRemote, XiangqiPanelProps } from './XiangqiPanel.tsx'
+export { XiangqiPanelIcon } from './XiangqiPanelIcon.tsx'
 export {
   XIANGQI_COLUMNS,
   XIANGQI_ROWS,
@@ -61,7 +62,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   // ctx.remote.xiangqi from this outer fiber would violate the injection guard,
   // while declaring it in the outer `inject` would deadlock before $mount runs.
   // Park the UI in a child fiber that starts only after the namespace exists.
-  await ctx.inject(['slots', 'sessions', 'remote', 'remote.xiangqi'], (uiCtx) => {
+  await ctx.inject(['slots', 'sessions', 'remote', 'remote.xiangqi', 'layout'], (uiCtx) => {
     applyXiangqiUi(uiCtx)
   })
 
@@ -69,6 +70,9 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     if (disposeRemote !== undefined) await disposeRemote()
   }
 }
+
+/** Panel id shared by the sidebar row and the main-slot occupant. */
+const PANEL_ID = 'xiangqi' as MainPanelId
 
 /** Register the browser surfaces from a context authorized for remote.xiangqi. */
 function applyXiangqiUi(ctx: ClientContext): void {
@@ -78,17 +82,20 @@ function applyXiangqiUi(ctx: ClientContext): void {
   const remote = ctx.get('remote.xiangqi') as unknown as XiangqiClientRemote | undefined
   if (remote === undefined) throw new Error('象棋 Remote 挂载后仍不可用')
 
-  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
-    name: 'sidebar.footer.action',
-    id: 'xiangqi',
+  // 棋盘页是主区域面板：宿主面板列表按 order 升序渲染，负值把它排在
+  // 「插件」(0) 与「自动化任务」(10) 之上。
+  const Panel = createXiangqiPanel(remote, () => { ctx.layout.selectPanel(null) })
+  ctx.slots.inject('main', () => ctx.slots.register({
+    name: 'main',
+    key: PANEL_ID,
     store,
-  }, XiangqiSidebarAction))
+  }, Panel))
 
-  const Overlay = createXiangqiOverlay(remote)
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'xiangqi-overlay',
-    order: 80,
+  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+    name: 'sidebar.panellist',
+    id: PANEL_ID,
+    order: -10,
+    label: '下盘象棋',
     store,
-  }, Overlay))
+  }, XiangqiPanelIcon))
 }

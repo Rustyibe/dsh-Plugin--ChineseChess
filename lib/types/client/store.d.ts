@@ -3,8 +3,6 @@ import { type EngineStoreHandle } from '@deepseek-ai/dsh-client-store';
 import type { XiangqiDecisionTrace, XiangqiSerializedState } from '../types.ts';
 import type { XiangqiActivity, XiangqiGameViewModel } from './types.ts';
 export interface XiangqiUiState {
-    open: boolean;
-    minimized: boolean;
     sessionId: string | null;
     gameId: string | null;
     revision: number | null;
@@ -19,9 +17,6 @@ export interface XiangqiUiState {
     error: string | null;
 }
 export type XiangqiUiActions = {
-    open: (draft: XiangqiUiState) => void;
-    close: (draft: XiangqiUiState) => void;
-    toggleMinimized: (draft: XiangqiUiState) => void;
     attachSession: (draft: XiangqiUiState, sessionId: string) => void;
     detachSession: (draft: XiangqiUiState) => void;
     clearGame: (draft: XiangqiUiState) => void;

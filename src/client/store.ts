@@ -6,8 +6,6 @@ import type { XiangqiDecisionTrace, XiangqiSerializedState } from '../types.ts'
 import type { XiangqiActivity, XiangqiGameViewModel } from './types.ts'
 
 export interface XiangqiUiState {
-  open: boolean
-  minimized: boolean
   sessionId: string | null
   gameId: string | null
   revision: number | null
@@ -23,9 +21,6 @@ export interface XiangqiUiState {
 }
 
 export type XiangqiUiActions = {
-  open: (draft: XiangqiUiState) => void
-  close: (draft: XiangqiUiState) => void
-  toggleMinimized: (draft: XiangqiUiState) => void
   attachSession: (draft: XiangqiUiState, sessionId: string) => void
   detachSession: (draft: XiangqiUiState) => void
   clearGame: (draft: XiangqiUiState) => void
@@ -56,8 +51,6 @@ export function isBoardLocked(state: Pick<XiangqiUiState, 'operationBusy' | 'aiP
 export function createXiangqiStore(): EngineStoreHandle<XiangqiUiState, XiangqiUiActions> {
   return defineStore({
     init: (): XiangqiUiState => ({
-      open: false,
-      minimized: false,
       sessionId: null,
       gameId: null,
       revision: null,
@@ -69,9 +62,6 @@ export function createXiangqiStore(): EngineStoreHandle<XiangqiUiState, XiangqiU
       error: null,
     }),
     actions: {
-      open: d => { d.open = true; d.minimized = false },
-      close: d => { d.open = false; d.minimized = false },
-      toggleMinimized: d => { d.minimized = !d.minimized },
       // Rebind the visible surface without discarding the process-global game.
       attachSession: (d, sessionId: string) => {
         d.sessionId = sessionId
@@ -87,7 +77,6 @@ export function createXiangqiStore(): EngineStoreHandle<XiangqiUiState, XiangqiU
         if (d.game !== null) d.game = { ...d.game, busy: false }
       },
       clearGame: (d) => {
-        d.minimized = false
         d.sessionId = null
         d.gameId = null
         d.revision = null

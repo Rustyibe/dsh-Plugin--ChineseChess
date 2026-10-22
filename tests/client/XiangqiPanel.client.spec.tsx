@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { createXiangqiOverlay, type XiangqiClientRemote } from '../../src/client/XiangqiOverlay.tsx'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { createXiangqiPanel, type XiangqiClientRemote } from '../../src/client/XiangqiPanel.tsx'
 import { newGame as createGame } from '../../src/game/rules.ts'
 import { serialize } from '../../src/game/serialization.ts'
 import type { XiangqiUiState } from '../../src/client/store.ts'
@@ -12,8 +12,6 @@ afterEach(cleanup)
 
 function initialState(): XiangqiUiState {
   return {
-    open: true,
-    minimized: false,
     sessionId: null,
     gameId: null,
     revision: null,
@@ -27,12 +25,12 @@ function initialState(): XiangqiUiState {
 }
 
 function Harness({
-  Overlay,
+  Panel,
   currentSession = 'session-1',
   initialSessionId = null,
   onDetachSession,
 }: {
-  Overlay: ReturnType<typeof createXiangqiOverlay>
+  Panel: ReturnType<typeof createXiangqiPanel>
   currentSession?: string
   initialSessionId?: string | null
   onDetachSession?: () => void
@@ -43,9 +41,6 @@ function Harness({
       setState(previous => ({ ...previous, ...patch }))
     }
     return {
-      open: () => update({ open: true }),
-      close: () => update({ open: false }),
-      toggleMinimized: () => setState(previous => ({ ...previous, minimized: !previous.minimized })),
       attachSession: (sessionId: string) => update({ sessionId }),
       detachSession: () => {
         onDetachSession?.()
@@ -63,12 +58,17 @@ function Harness({
   }, [])
 
   const useStore = <T,>(select: (value: XiangqiUiState) => T): T => select(state)
-  // 投影通道已随会话事件一起移除；客户端只从 useSessions 读当前会话 id。
-  const sessionSnapshot = { current: currentSession }
+  // 0.2.x 适配：SessionListState 不再带 current，主视图会话由 mainView 引用计数表达。
+  const sessionSnapshot = {
+    ids: [currentSession],
+    byId: { [currentSession]: { id: currentSession, retainedBy: { mainView: 1 } } },
+    phase: 'ready',
+    projectionsBySession: {},
+  }
   const useSessions = <T,>(select: (value: typeof sessionSnapshot) => T): T => select(sessionSnapshot)
 
   return (
-    <Overlay
+    <Panel
       useStore={useStore as never}
       useSessions={useSessions as never}
       actions={actions as never}
@@ -81,16 +81,16 @@ function runtimePollingStub() {
   return vi.fn().mockRejectedValue(new Error('runtime state not mocked'))
 }
 
-describe('XiangqiOverlay', () => {
+describe('XiangqiPanel', () => {
   it('does not create a new game when global synchronization fails', async () => {
     const remote = {
       get: vi.fn().mockRejectedValue(new Error('internal: xiangqi: game "game-stale" was not found')),
       newGame: vi.fn(),
       getRuntimeState: runtimePollingStub(),
     } as unknown as XiangqiClientRemote
-    const Overlay = createXiangqiOverlay(remote)
+    const Panel = createXiangqiPanel(remote, vi.fn())
 
-    render(<Harness Overlay={Overlay} />)
+    render(<Harness Panel={Panel} />)
 
     await waitFor(() => expect(remote.get).toHaveBeenCalledTimes(1))
     await new Promise(resolve => setTimeout(resolve, 30))
@@ -99,7 +99,7 @@ describe('XiangqiOverlay', () => {
     expect(screen.getByText('internal: xiangqi: game "game-stale" was not found')).toBeTruthy()
   })
 
-  it('reads the Host global game directly when the surface opens', async () => {
+  it('reads the Host global game directly when the panel mounts', async () => {
     const remote = {
       get: vi.fn().mockResolvedValue({
         ok: true,
@@ -113,75 +113,61 @@ describe('XiangqiOverlay', () => {
       newGame: vi.fn(),
       getRuntimeState: runtimePollingStub(),
     } as unknown as XiangqiClientRemote
-    const Overlay = createXiangqiOverlay(remote)
+    const Panel = createXiangqiPanel(remote, vi.fn())
 
-    render(<Harness Overlay={Overlay} />)
+    render(<Harness Panel={Panel} />)
 
     await waitFor(() => expect(remote.get).toHaveBeenCalledWith('session-1', undefined))
     expect(remote.newGame).not.toHaveBeenCalled()
   })
 
-  it('keeps the floating surface and does not cancel AI when switching chats', async () => {
+  it('keeps the panel and does not cancel AI when switching chats', async () => {
     const remote = {
       get: vi.fn(),
       newGame: vi.fn(),
       cancelAiMove: vi.fn().mockResolvedValue({ ok: true, value: { cancelled: true } }),
       getRuntimeState: runtimePollingStub(),
     } as unknown as XiangqiClientRemote
-    const Overlay = createXiangqiOverlay(remote)
+    const Panel = createXiangqiPanel(remote, vi.fn())
     const onDetachSession = vi.fn()
 
     const view = render(<Harness
-      Overlay={Overlay}
+      Panel={Panel}
       currentSession="session-1"
       initialSessionId="session-1"
       onDetachSession={onDetachSession}
     />)
-    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByText('正在准备棋局……')).toBeTruthy()
 
     view.rerender(<Harness
-      Overlay={Overlay}
+      Panel={Panel}
       currentSession="session-2"
       initialSessionId="session-1"
     />)
 
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('正在准备棋局……')).toBeTruthy())
     expect(remote.cancelAiMove).not.toHaveBeenCalled()
     expect(onDetachSession).not.toHaveBeenCalled()
   })
 
-  it('can minimize and restore the floating chess surface', async () => {
+  it('asks for a session instead of rendering a board without one', () => {
     const remote = {
-      get: vi.fn().mockRejectedValue(new Error('GAME_NOT_FOUND: no global game')),
-      newGame: vi.fn().mockRejectedValue(new Error('测试 Remote 失败')),
+      get: vi.fn(),
+      newGame: vi.fn(),
       getRuntimeState: runtimePollingStub(),
     } as unknown as XiangqiClientRemote
-    const Overlay = createXiangqiOverlay(remote)
+    const Panel = createXiangqiPanel(remote, vi.fn())
 
-    render(<Harness Overlay={Overlay} />)
+    function NoSession() {
+      const useStore = <T,>(select: (value: XiangqiUiState) => T): T => select(initialState())
+      const sessionSnapshot = { ids: [], byId: {}, phase: 'empty-with-ready', projectionsBySession: {} }
+      const useSessions = <T,>(select: (value: typeof sessionSnapshot) => T): T => select(sessionSnapshot)
+      return <Panel useStore={useStore as never} useSessions={useSessions as never} actions={{} as never} />
+    }
 
-    await waitFor(() => expect(screen.getByRole('button', { name: '最小化棋盘' })).toBeTruthy())
-    fireEvent.click(screen.getByRole('button', { name: '最小化棋盘' }))
-    expect(screen.getByRole('button', { name: '恢复棋盘' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '恢复棋盘' }))
-    expect(screen.getByRole('button', { name: '最小化棋盘' })).toBeTruthy()
-  })
+    render(<NoSession />)
 
-  it('hides without cancelling a pending AI decision', async () => {
-    const remote = {
-      get: vi.fn().mockRejectedValue(new Error('GAME_NOT_FOUND: no global game')),
-      newGame: vi.fn().mockRejectedValue(new Error('测试 Remote 失败')),
-      cancelAiMove: vi.fn(),
-      getRuntimeState: runtimePollingStub(),
-    } as unknown as XiangqiClientRemote
-    const Overlay = createXiangqiOverlay(remote)
-
-    render(<Harness Overlay={Overlay} />)
-
-    await waitFor(() => expect(screen.getByRole('button', { name: '关闭棋盘' })).toBeTruthy())
-    fireEvent.click(screen.getByRole('button', { name: '关闭棋盘' }))
-
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(remote.cancelAiMove).not.toHaveBeenCalled()
+    expect(screen.getByText('请先在左侧选择或创建一个会话。')).toBeTruthy()
+    expect(remote.get).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,5 @@
 {
-  "//": "0.1.5 适配：类型全部从 node_modules 的 npm 包（0.1.5-alpha.1）解析（详见 tsconfig.host.json 注释）。",
+  "//": "0.2.1 适配：类型全部从 node_modules 的 npm 包（0.2.1-rc.2）解析（详见 tsconfig.host.json 注释）。",
   "compilerOptions": {
     "target": "ES2024",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],

@@ -4,6 +4,13 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import type { XiangqiAiTurnRequest, XiangqiAiTurnResult, XiangqiDecisionTrace, XiangqiRuntimeState } from '../types.ts';
 import type { XiangqiMoveRequest, XiangqiNewGameRequest, XiangqiResignRequest, XiangqiSerializedState, XiangqiUndoRequest } from './dsh-service-types.ts';
+declare module '@deepseek-ai/dsh-llm' {
+    interface MessageSourceMap {
+        'dsh-plugin-xiangqi': {
+            kind: 'dsh-plugin-xiangqi';
+        };
+    }
+}
 /**
  * Host-side service loaded by the bundle patch. Every Remote method starts
  * with Agent so Typert maps the client SessionId to the exact live agent.

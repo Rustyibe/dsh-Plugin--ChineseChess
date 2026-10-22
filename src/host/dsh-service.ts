@@ -48,6 +48,13 @@ import { freezeElapsedMs, isTerminalPhase } from './trace-timing.ts'
 import { deserialize as deserializeGame } from '../game/serialization.ts'
 import type {} from '../domain.ts'
 
+// 0.2.x 适配：MessageSourceMap 改为各生产方自行声明 kind，不再有共享的 'plugin' 值。
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'dsh-plugin-xiangqi': { kind: 'dsh-plugin-xiangqi' }
+  }
+}
+
 interface SessionGame {
   readonly service: XiangqiHostService
   // 显式可空而非可选：恢复失败时需要把当前局清空回 undefined。
@@ -658,7 +665,7 @@ export class XiangqiService extends TypertRemoteService {
       ...resolved,
       messages: [createUserMessage({
         content: [{ type: 'text', text: `Frozen Chinese chess decision packet:\n${JSON.stringify(packet)}` }],
-        source: { kind: 'plugin', plugin: 'dsh-plugin-xiangqi' },
+        source: { kind: 'dsh-plugin-xiangqi' },
       })],
       system: DECISION_SYSTEM_PROMPT,
       maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,

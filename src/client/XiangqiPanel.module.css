@@ -1,0 +1,67 @@
+/* 主区域象棋面板的外壳：棋盘页自带完整样式，这里只补容器与状态位。 */
+
+.host {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  background: #0a0c0e;
+}
+
+.state {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+  padding: 32px;
+  background: radial-gradient(circle at 50% 20%, #1a1e26 0%, #111317 70%, #0a0c0e 100%);
+  color: #cbd5e1;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  text-align: center;
+}
+
+.state p {
+  margin: 0;
+}
+
+.errorText {
+  color: #fca5a5;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 520px;
+}
+
+.retryButton {
+  padding: 8px 18px;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  border-radius: 10px;
+  background: rgba(212, 175, 55, 0.12);
+  color: #f0d894;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.retryButton:hover {
+  background: rgba(212, 175, 55, 0.22);
+  border-color: rgba(212, 175, 55, 0.7);
+}
+
+.inlineError {
+  position: sticky;
+  bottom: 0;
+  margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(248, 113, 113, 0.25);
+  background: rgba(69, 26, 3, 0.92);
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.6;
+}

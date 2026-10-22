@@ -1,4 +1,4 @@
-/** Frame-wide Chinese chess surface and its Host/Agent turn bridge. */
+/** 主区域中国象棋面板与其 Host/Agent 落子桥。 */
 
 import { useEffect, useRef } from 'react'
 import type { PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
@@ -15,9 +15,9 @@ import type {
 } from '../types.ts'
 import type { XiangqiMoveRequest, XiangqiPageActions } from './types.ts'
 import { createXiangqiStore } from './store.ts'
-import { liveStatusTextOf, toXiangqiGameViewModel, turnOf, ucciOf } from './view-model.ts'
+import { toXiangqiGameViewModel, turnOf, ucciOf } from './view-model.ts'
 import { XiangqiPage } from './XiangqiPage.tsx'
-import css from './XiangqiSlots.module.css'
+import css from './XiangqiPanel.module.css'
 
 export interface XiangqiClientRemote {
   newGame: (sessionId: SessionId, request: XiangqiNewGameRequest) => Promise<RemoteResult<XiangqiSerializedState>>
@@ -48,8 +48,8 @@ export interface XiangqiClientRemote {
 const AI_PENDING_POLL_MS = 350
 const IDLE_POLL_MS = 1500
 
-export type XiangqiOverlayProps =
-  PropsRuntime<'shell.overlay'>
+export type XiangqiPanelProps =
+  PropsRuntime<'main'>
   & PropsStore<ReturnType<typeof createXiangqiStore>>
 
 function errorText(error: unknown): string {
@@ -62,19 +62,20 @@ function unwrap<T>(result: RemoteResult<T>): T {
 }
 
 /**
- * Build a slot component with the mounted Remote face closed over the plugin
- * fiber. This avoids a module-level singleton and keeps HMR unload-safe.
+ * Build the `main` panel component with the mounted Remote face closed over the
+ * plugin fiber. This avoids a module-level singleton and keeps HMR unload-safe.
+ * @param remote - mounted Xiangqi Remote namespace.
+ * @param onExit - leaves the panel for the Conversation (the page's own exit affordance).
  */
-export function createXiangqiOverlay(
+export function createXiangqiPanel(
   remote: XiangqiClientRemote,
+  onExit: () => void,
 ) {
-  return function XiangqiOverlay({
+  return function XiangqiPanel({
     useSessions,
     useStore,
     actions,
-  }: XiangqiOverlayProps) {
-    const open = useStore(state => state.open)
-    const minimized = useStore(state => state.minimized)
+  }: XiangqiPanelProps) {
     const sessionId = useStore(state => state.sessionId)
     const gameId = useStore(state => state.gameId)
     const revision = useStore(state => state.revision)
@@ -83,7 +84,9 @@ export function createXiangqiOverlay(
     const operationBusy = useStore(state => state.operationBusy)
     const aiPending = useStore(state => state.aiPending)
     const error = useStore(state => state.error)
-    const currentSessionId = useSessions(state => state.current)
+    // 0.2.x 适配：SessionListState 不再带 current，主视图会话由 mainView 引用计数表达。
+    const currentSessionId = useSessions(state =>
+      Object.values(state.byId).find(session => (session.retainedBy.mainView ?? 0) > 0)?.id)
     const currentSessionRef = useRef<SessionId | undefined>(currentSessionId)
     currentSessionRef.current = currentSessionId
     // Long-interval polls read the latest view through a ref so switching
@@ -119,11 +122,11 @@ export function createXiangqiOverlay(
       unwrap(await remote.get(current, undefined))
 
     /**
-     * 打开期间的唯一同步通道：原子运行状态一次带回棋局、aiPending 与追踪。
+     * 面板挂载期间的唯一同步通道：原子运行状态一次带回棋局、aiPending 与追踪。
      * 决策进行中 350ms、空闲 1500ms；任何标签页的落子/取消都会被所有页面看到。
      */
     useEffect(() => {
-      if (!open || currentSessionId === undefined || sessionId !== String(currentSessionId)) return
+      if (currentSessionId === undefined || sessionId !== String(currentSessionId)) return
       let active = true
       let timer: ReturnType<typeof setTimeout> | undefined
       const poll = async (): Promise<void> => {
@@ -159,11 +162,11 @@ export function createXiangqiOverlay(
         active = false
         if (timer !== undefined) clearTimeout(timer)
       }
-    }, [actions, aiPending, currentSessionId, open, sessionId])
+    }, [actions, aiPending, currentSessionId, sessionId])
 
     // 决策追踪的即时首拉（打开面板时不用等第一个轮询周期）。
     useEffect(() => {
-      if (!open || currentSessionId === undefined || gameId === null || sessionId !== String(currentSessionId)) return
+      if (currentSessionId === undefined || gameId === null || sessionId !== String(currentSessionId)) return
       let active = true
       void remote.getDecisionTrace(currentSessionId, gameId)
         .then((result) => {
@@ -171,10 +174,10 @@ export function createXiangqiOverlay(
         })
         .catch(() => { /* 诊断失败不影响棋盘 */ })
       return () => { active = false }
-    }, [actions, currentSessionId, gameId, open, sessionId])
+    }, [actions, currentSessionId, gameId, sessionId])
 
     useEffect(() => {
-      if (!open || currentSessionId === undefined) {
+      if (currentSessionId === undefined) {
         autoStartSession.current = null
         return
       }
@@ -210,7 +213,7 @@ export function createXiangqiOverlay(
             }
           })
       }
-    }, [actions, aiPending, currentSessionId, open, operationBusy, sessionId])
+    }, [actions, aiPending, currentSessionId, operationBusy, sessionId])
 
     /** 黑方回合统一入口：取模型快照 → 请求 DSH 决策 → 写回结果。 */
     const runAiTurn = async (
@@ -388,14 +391,8 @@ export function createXiangqiOverlay(
 
     const onPageMove = (move: XiangqiMoveRequest): void => {
       // The callback keeps XiangqiPage's public surface UI-only while the
-      // overlay supplies the current session/revision fence.
+      // panel supplies the current session/revision fence.
       void onMoveWith(move)
-    }
-
-    const onExit = (): void => {
-      // Closing only hides the floating surface. The process-global game and
-      // in-flight DSH decision continue; reopening reads the same state.
-      actions.close()
     }
 
     const pageActions: XiangqiPageActions = {
@@ -408,52 +405,23 @@ export function createXiangqiOverlay(
       onExit,
     }
 
-    if (!open) return null
+    if (currentSessionId === undefined) {
+      return <div className={css.state}>请先在左侧选择或创建一个会话。</div>
+    }
+    if (game === null) {
+      return (
+        <div className={css.state}>
+          <p>正在准备棋局……</p>
+          {error !== null && <p className={css.errorText} role="alert">{error}</p>}
+          <button type="button" className={css.retryButton} onClick={onNewGame}>重新开局</button>
+        </div>
+      )
+    }
 
     return (
-      <div className={minimized ? css.overlayBackdropMinimized : css.overlayBackdrop} role="presentation">
-        <section
-          className={minimized ? `${css.overlaySurface} ${css.overlaySurfaceMinimized}` : css.overlaySurface}
-          role="dialog"
-          aria-modal={minimized ? undefined : true}
-          aria-labelledby="xiangqi-dialog-title"
-        >
-          <div className={css.overlayToolbar}>
-            <h2 className={css.overlayTitle} id="xiangqi-dialog-title">中国象棋</h2>
-            <div className={css.toolbarActions}>
-              <button
-                type="button"
-                className={css.minimizeButton}
-                aria-label={minimized ? '恢复棋盘' : '最小化棋盘'}
-                onClick={() => { actions.toggleMinimized() }}
-              >
-                {minimized ? '恢复棋盘' : '最小化'}
-              </button>
-              <button type="button" className={css.closeButton} onClick={onExit}>关闭棋盘</button>
-            </div>
-          </div>
-          {minimized ? (
-            <div className={css.minimizedSummary}>
-              <span className={css.minimizedDot} data-busy={operationBusy || aiPending || undefined} aria-hidden="true" />
-              <span>{game === null ? '棋局未准备' : liveStatusTextOf(game)}</span>
-            </div>
-          ) : (
-            <>
-              {currentSessionId === undefined && (
-                <div className={css.emptyState}>请先在左侧选择或创建一个会话。</div>
-              )}
-              {currentSessionId !== undefined && game === null && (
-                <div className={css.emptyState}>
-                  <p>正在准备棋局……</p>
-                  {error !== null && <p className={css.errorText} role="alert">{error}</p>}
-                  <button type="button" className={css.retryButton} onClick={onNewGame}>重新开局</button>
-                </div>
-              )}
-              {game !== null && <XiangqiPage game={game} decisionTrace={decisionTrace} {...pageActions} />}
-              {error !== null && game !== null && <p className={css.inlineError} role="alert">{error}</p>}
-            </>
-          )}
-        </section>
+      <div className={css.host}>
+        <XiangqiPage game={game} decisionTrace={decisionTrace} {...pageActions} />
+        {error !== null && <p className={css.inlineError} role="alert">{error}</p>}
       </div>
     )
   }

@@ -61,7 +61,7 @@ describe('xiangqi client Remote lifecycle', () => {
           get: vi.fn(),
           requestAiMove: vi.fn(),
           cancelAiMove: vi.fn(),
-          // 第三轮补齐：Overlay 打开期间会调用这两个接口。
+          // 面板挂载后会轮询运行状态并读取决策追踪。
           getRuntimeState: vi.fn(async () => ({ ok: false, error: { code: 'STUB', message: 'runtime state stub' } })),
           getDecisionTrace: vi.fn(async () => ({ ok: true, value: null })),
         })
@@ -74,6 +74,8 @@ describe('xiangqi client Remote lifecycle', () => {
     const injectSlot = vi.fn()
     const disposeSlots = ctx.provide('slots', { inject: injectSlot })
     const disposeSessions = ctx.provide('sessions', { binding: vi.fn() })
+    // 面板的退出按钮通过 layout.selectPanel(null) 回到对话。
+    const disposeLayout = ctx.provide('layout', { selectPanel: vi.fn() })
     // 0.1.2 适配：Child fiber 不再注入 'connection'（官方 session.models RPC
     // 已移除，模型路由由 Host 会话请求头兜底）。
 
@@ -88,11 +90,12 @@ describe('xiangqi client Remote lifecycle', () => {
     await ctx.loader.await()
 
     expect(ctx.get('remote.xiangqi')).toBeDefined()
-    expect(injectSlot).toHaveBeenCalledWith('sidebar.footer.action', expect.any(Function))
-    expect(injectSlot).toHaveBeenCalledWith('shell.overlay', expect.any(Function))
+    expect(injectSlot).toHaveBeenCalledWith('main', expect.any(Function))
+    expect(injectSlot).toHaveBeenCalledWith('sidebar.panellist', expect.any(Function))
 
     await ctx.loader.remove(entryId)
     expect(ctx.get('remote.xiangqi')).toBeUndefined()
+    disposeLayout()
     disposeSessions()
     disposeSlots()
     await ctx.fiber.dispose()

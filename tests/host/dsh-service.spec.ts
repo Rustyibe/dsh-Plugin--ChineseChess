@@ -54,8 +54,9 @@ describe('DSH Host service composition', () => {
         expect(descriptor.scope).toEqual({ context: 'agent', wire: 'agentId' })
       }
       const state = h.service.getRuntimeState(h.agent)
-      const clientCodec = remote.descriptors.find(descriptor => descriptor.method === 'getRuntimeState')!.result.schema
-      const hostCodec = TYPERT.invocations.find(descriptor => descriptor.method === 'getRuntimeState')!.result.schema
+      // 0.2.x 适配：result 是惰性 codec spec（create() 物化 Zod 模式），不再直接暴露 parse。
+      const clientCodec = remote.descriptors.find(descriptor => descriptor.method === 'getRuntimeState')!.result.create()
+      const hostCodec = TYPERT.invocations.find(descriptor => descriptor.method === 'getRuntimeState')!.result.create()
       expect(clientCodec.parse(state)).toEqual(hostCodec.parse(state))
       expect(() => clientCodec.parse({ ...state, state: { ...state.state, revision: 'invalid' } })).toThrow()
     } finally {
